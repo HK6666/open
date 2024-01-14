@@ -154,17 +154,29 @@ def delete_user(user_id):
 @route_user.route("/users", methods=['GET'])
 # @jwt_required()
 def get_users():
-    # 获取所有用户的信息
-    users = User.query.all()
-
+    # 获取分页参数
+    page = request.args.get('page', 1, type=int)
+    size = request.args.get('size', 10, type=int)
+    # 分页查询
+    paginated_users = User.query.paginate(page=page, per_page=size, error_out=False)
     users_data = [{
         'id': user.id,
         'name': user.name,
         'phone': user.phone,
         'is_super': user.is_super,
         'gender': user.gender,
-    } for user in users]
+    } for user in paginated_users.items]
 
-    return jsonify(users_data), 200
+    # 准备分页信息
+    pagination_data = {
+        'total_pages': paginated_users.pages,
+        'total_items': paginated_users.total,
+        'current_page': page,
+        'size': size,
+        'items': users_data
+    }
+
+    return jsonify(pagination_data), 200
+
 
 

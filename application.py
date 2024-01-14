@@ -11,6 +11,8 @@ app.config.from_pyfile('config/local_setting.py')
 
 # 配置JWT扩展
 app.config['JWT_SECRET_KEY'] = '123456DDDD'  # 设置JWT密钥，用于签名令牌
+app.config['SQLALCHEMY_ECHO'] = True
+
 jwt = JWTManager(app)
 
 # 初始化 SQLAlchemy
