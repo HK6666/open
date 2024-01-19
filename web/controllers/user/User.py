@@ -84,7 +84,7 @@ def get_user(user_id):
     user = User.query.filter_by(id=user_id).first()
     if not user:
         return jsonify({'message': 'User not found'}), 404
-    return jsonify({'user': {'name': user.name, 'phone': user.phone},'id': user.id}), 200
+    return jsonify({'user': {'name': user.name, 'phone': user.phone, 'is_super': user.is_super},'id': user.id}), 200
 
 @route_user.route("/<int:user_id>", methods=['PUT'])
 @jwt_required()
@@ -115,6 +115,10 @@ def update_user(user_id):
         user_to_update.phone = data['phone']
     if 'is_super' in data:
         user_to_update.is_super = data['is_super']
+    if 'gender' in data:
+        user_to_update.gender = data['gender']
+    if 'password' in data:
+        user_to_update.password = data['password']
 
     db.session.commit()
     return jsonify({'message': 'User updated successfully'}), 200
@@ -154,11 +158,23 @@ def delete_user(user_id):
 @route_user.route("/users", methods=['GET'])
 # @jwt_required()
 def get_users():
-    # 获取分页参数
+    # 获取分页和搜索参数
     page = request.args.get('page', 1, type=int)
     size = request.args.get('size', 10, type=int)
+    name = request.args.get('name', type=str)
+    is_super = request.args.get('is_super', type=int)
+
+    # 构建基础查询
+    query = User.query
+
+    # 根据 name 和 is_super 进行过滤（如果提供了这些参数）
+    if name:
+        query = query.filter(User.name.ilike(f"%{name}%"))
+    if is_super is not None:
+        query = query.filter(User.is_super == is_super)
+
     # 分页查询
-    paginated_users = User.query.paginate(page=page, per_page=size, error_out=False)
+    paginated_users = query.paginate(page=page, per_page=size, error_out=False)
     users_data = [{
         'id': user.id,
         'name': user.name,

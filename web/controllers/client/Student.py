@@ -2,6 +2,7 @@
 # @Author  : kai huang
 # @File    : Student.py.py
 # -*- coding: utf-8 -*-
+import os
 from sqlite3 import IntegrityError
 
 from flask import Flask, request, jsonify, Blueprint
@@ -9,14 +10,15 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from werkzeug.security import check_password_hash
 
 from application import db
+from web.controllers.FileUpload import FileUpload
 
-route_client = Blueprint('student_page', __name__)
+route_student = Blueprint('student_page', __name__)
 
 class Student(db.Model):
     __tablename__ = 'student'
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_file_data=False):
+        student_dict =  {
             'id': self.id,
             'name': self.name,
             'nach_name': self.nach_name,
@@ -58,6 +60,23 @@ class Student(db.Model):
             'additional9': self.additional9,
             'additional10': self.additional10,
         }
+
+        if include_file_data:
+            # 检查每个整数型字段是否有文件上传
+            for field in self.__table__.columns:
+                if isinstance(field.type, db.Integer):
+                    field_name = field.name
+                    file_upload = FileUpload.query.filter_by(
+                        user_id=self.id, field_name=field_name).first()
+                    if file_upload:
+                        student_dict[f"{field_name}_file_data"] = {
+                            'file_path': file_upload.file_path,
+                            'filename': os.path.basename(file_upload.file_path)
+                        }
+                    else:
+                        student_dict[f"{field_name}_file_data"] = None
+
+        return student_dict
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
@@ -101,7 +120,7 @@ class Student(db.Model):
     additional10 = db.Column(db.String(255), nullable=False)
 
 
-@route_client.route('/student', methods=['POST'])
+@route_student.route('', methods=['POST'])
 def add_student():
     data = request.get_json()
 
@@ -163,7 +182,7 @@ def add_student():
         db.session.rollback()
         return jsonify({'message': str(e)}), 500
 
-@route_client.route('/student/<int:student_id>', methods=['PUT'])
+@route_student.route('/<int:student_id>', methods=['PUT'])
 def update_student(student_id):
     student = Student.query.get(student_id)
     if not student:
@@ -185,7 +204,7 @@ def update_student(student_id):
         db.session.rollback()
         return jsonify({'message': str(e)}), 500
 
-@route_client.route('/student/<int:student_id>/delete', methods=['POST'])
+@route_student.route('/<int:student_id>/delete', methods=['POST'])
 def delete_student(student_id):
     student = Student.query.get(student_id)
     if not student:
@@ -200,7 +219,7 @@ def delete_student(student_id):
         return jsonify({'message': str(e)}), 500
 
 
-@route_client.route('/student/<int:student_id>', methods=['GET'])
+@route_student.route('/<int:student_id>', methods=['GET'])
 def get_student(student_id):
     student = Student.query.get(student_id)
     if not student:
@@ -208,13 +227,14 @@ def get_student(student_id):
 
     return jsonify(student.to_dict()), 200
 
-@route_client.route('/students', methods=['GET'])
+@route_student.route('', methods=['GET'])
 def get_students():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('size', 10, type=int)  # 注意这里是 'size', 不是 'per_page'
 
-    paginated_students = Student.query.paginate(page=page, per_page=per_page, error_out=False)
-    students_data = [student.to_dict() for student in paginated_students.items]
+    paginated_students = Student.query.order_by(Student.id.desc()).paginate(page=page, per_page=per_page,
+                                                                        error_out=False)
+    students_data = [student.to_dict(include_file_data=True) for student in paginated_students.items]
 
     pagination_data = {
         'total_pages': paginated_students.pages,
