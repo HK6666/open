@@ -2,7 +2,9 @@
 # @Author  : kai huang
 # @File    : Student.py.py
 # -*- coding: utf-8 -*-
+import json
 import os
+from datetime import datetime
 from sqlite3 import IntegrityError
 
 from flask import Flask, request, jsonify, Blueprint
@@ -14,8 +16,18 @@ from web.controllers.FileUpload import FileUpload
 
 route_student = Blueprint('student_page', __name__)
 
+
 class Student(db.Model):
     __tablename__ = 'student'
+
+    def check_all_fields_have_files(self, field_names):
+        """检查给定字段是否都有文件上传记录"""
+        for field_name in field_names:
+            file_upload = FileUpload.query.filter_by(
+                user_id=self.id, field_name=field_name).order_by(FileUpload.upload_time.desc()).first()
+            if not file_upload:
+                return False
+        return True
 
     def to_dict(self, include_file_data=False):
         student_dict =  {
@@ -43,7 +55,7 @@ class Student(db.Model):
             'b2_score': self.b2_score,
             'ausbildung_start': self.ausbildung_start.isoformat() if self.ausbildung_start else None,
             'visa_valide_until': self.visa_valide_until.isoformat() if self.visa_valide_until else None,
-            'payment': self.payment.isoformat() if self.payment else None,
+            'payment': json.loads(self.payment) if self.payment else [],
             'note': self.note,
             'Erweitertes_Führungszeugniss': self.Erweitertes_Führungszeugniss.isoformat() if self.Erweitertes_Führungszeugniss else None,
             'email_address': self.email_address,
@@ -59,6 +71,34 @@ class Student(db.Model):
             'additional8': self.additional8,
             'additional9': self.additional9,
             'additional10': self.additional10,
+            'abschlusszeugnis_oberstufe_china_document': self.abschlusszeugnis_oberstufe_china_document,
+            'abschlusszeugnis_fachhochschule_china_document': self.abschlusszeugnis_fachhochschule_china_document,
+            'leistungszeugni_oberstufe_china_document': self.leistungszeugni_oberstufe_china_document,
+            'leistungszeugnis_fachhochschule_china_document': self.leistungszeugnis_fachhochschule_china_document,
+            'passport_china_document': self.passport_china_document,
+            'vollmacht_china_document': self.vollmacht_china_document,
+            'cv_lebenslauf_china_document': self.cv_lebenslauf_china_document,
+            'antrag_auf_bewertung_china_document': self.antrag_auf_bewertung_china_document,
+            'vormlose_absichtserklärung_china_document': self.vormlose_absichtserklärung_china_document,
+            'motivation_schreiben_china_document': self.motivation_schreiben_china_document,
+            'language_level_scan_china_document': self.language_level_scan_china_document,
+            'passport_write_translator': self.passport_write_translator,
+            'abschlusszeugnis_oberstufe_write_translator': self.abschlusszeugnis_oberstufe_write_translator,
+            'leistungszeugnis_oberstufe_write_translator': self.leistungszeugnis_oberstufe_write_translator,
+            'passport_sc': self.passport_sc,
+            'abschlusszeugnis_oberstufe_sc': self.abschlusszeugnis_oberstufe_sc,
+            'leistungszeugnis_oberstufe_sc': self.leistungszeugnis_oberstufe_sc,
+            'antrag_auf_bewertung_sc': self.antrag_auf_bewertung_sc,
+            'contract_sc': self.contract_sc,
+            'erklärung_zum_eschäftigungsverhältnis_zav': self.erklärung_zum_eschäftigungsverhältnis_zav,
+            'vollmacht_zav': self.vollmacht_zav,
+            'contract_zav': self.contract_zav,
+            'language_enrollment_document_zav': self.language_enrollment_document_zav,
+            'nursing_school_enrollment_document_zav': self.nursing_school_enrollment_document_zav,
+            'passport_zav': self.passport_zav,
+            'client_id': self.client_id,
+            'zav': self.zav,
+            'sc': self.sc
         }
 
         if include_file_data:
@@ -66,8 +106,9 @@ class Student(db.Model):
             for field in self.__table__.columns:
                 if isinstance(field.type, db.Integer):
                     field_name = field.name
+                    # 获取最后上传的文件
                     file_upload = FileUpload.query.filter_by(
-                        user_id=self.id, field_name=field_name).first()
+                        user_id=self.id, field_name=field_name).order_by(FileUpload.upload_time.desc()).first()
                     if file_upload:
                         student_dict[f"{field_name}_file_data"] = {
                             'file_path': file_upload.file_path,
@@ -76,48 +117,116 @@ class Student(db.Model):
                     else:
                         student_dict[f"{field_name}_file_data"] = None
 
+        groups = {
+            'china_document': [
+                'abschlusszeugnis_oberstufe_china_document',
+                'abschlusszeugnis_fachhochschule_china_document',
+                'leistungszeugni_oberstufe_china_document',
+                'leistungszeugnis_fachhochschule_china_document',
+                'passport_china_document',
+                'vollmacht_china_document',
+                'cv_lebenslauf_china_document',
+                'antrag_auf_bewertung_china_document',
+                'vormlose_absichtserklärung_china_document',
+                'motivation_schreiben_china_document',
+                'language_level_scan_china_document'
+            ],
+            'write_translator': [
+                'passport_write_translator',
+                'abschlusszeugnis_oberstufe_write_translator',
+                'leistungszeugnis_oberstufe_write_translator'
+            ],
+            'sc': [
+                'passport_sc',
+                'abschlusszeugnis_oberstufe_sc',
+                'leistungszeugnis_oberstufe_sc',
+                'antrag_auf_bewertung_sc',
+                'contract_sc'
+            ],
+            'zav': [
+                'erklärung_zum_eschäftigungsverhältnis_zav',
+                'vollmacht_zav',
+                'contract_zav',
+                'language_enrollment_document_zav',
+                'nursing_school_enrollment_document_zav',
+                'passport_zav'
+            ]
+        }
+
+        # 检查并设置每组字段
+        for group_name, field_names in groups.items():
+            student_dict[group_name] = 1 if self.check_all_fields_have_files(field_names) else 0
+
         return student_dict
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    nach_name = db.Column(db.String(255), nullable=False)
-    type = db.Column(db.String(255), nullable=False)
-    channel = db.Column(db.String(255), nullable=False)
-    german_level = db.Column(db.String(255), nullable=False)
-    chinese_interview_training = db.Column(db.Integer, nullable=False)
-    interview_q_and_a = db.Column(db.Integer, nullable=False)
-    german_interview_training = db.Column(db.Integer, nullable=False)
-    employer = db.Column(db.String(255), nullable=False)
-    visa = db.Column(db.String(255), nullable=False)
-    birthday = db.Column(db.DateTime)
-    china_document = db.Column(db.Integer, nullable=False)
-    write_translator = db.Column(db.Integer, nullable=False)
-    interview_date = db.Column(db.DateTime)
-    contract = db.Column(db.Integer, nullable=False)
-    Erklärung_zum_Beschäftigungsverhältnis = db.Column(db.Integer, nullable=False)
-    language_enrollment_document = db.Column(db.Integer, nullable=False)
-    nursing_school_enrollment_document = db.Column(db.Integer, nullable=False)
-    barmer = db.Column(db.Integer, nullable=False)
-    b2_course = db.Column(db.DateTime)
-    b2_score = db.Column(db.Integer, nullable=False)
-    ausbildung_start = db.Column(db.DateTime)
-    visa_valide_until = db.Column(db.DateTime)
-    payment = db.Column(db.DateTime)
-    note = db.Column(db.String(255), nullable=False)
-    Erweitertes_Führungszeugniss = db.Column(db.DateTime)
-    email_address = db.Column(db.String(255), nullable=False)
-    apartment_address = db.Column(db.String(255), nullable=False)
-    german_phone_number = db.Column(db.String(255), nullable=False)
-    additional1 = db.Column(db.String(255), nullable=False)
-    additional2 = db.Column(db.String(255), nullable=False)
-    additional3 = db.Column(db.String(255), nullable=False)
-    additional4 = db.Column(db.String(255), nullable=False)
-    additional5 = db.Column(db.String(255), nullable=False)
-    additional6 = db.Column(db.String(255), nullable=False)
-    additional7 = db.Column(db.String(255), nullable=False)
-    additional8 = db.Column(db.String(255), nullable=False)
-    additional9 = db.Column(db.String(255), nullable=False)
-    additional10 = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=False, default="")
+    nach_name = db.Column(db.String(255), nullable=False, default="")
+    type = db.Column(db.String(255), nullable=False, default="")
+    channel = db.Column(db.String(255), nullable=False, default="")
+    german_level = db.Column(db.String(255), nullable=False, default="")
+    chinese_interview_training = db.Column(db.Integer, nullable=False, default=0)
+    interview_q_and_a = db.Column(db.Integer, nullable=False, default=0)
+    german_interview_training = db.Column(db.Integer, nullable=False, default=0)
+    employer = db.Column(db.String(255), nullable=False, default="")
+    visa = db.Column(db.String(255), nullable=False, default="")
+    birthday = db.Column(db.DateTime, default=None)  # 默认为 None，表示没有设置
+    china_document = db.Column(db.Integer, nullable=False, default=0)
+    write_translator = db.Column(db.Integer, nullable=False, default=0)
+    interview_date = db.Column(db.DateTime, default=None)
+    contract = db.Column(db.Integer, nullable=False, default=0)
+    Erklärung_zum_Beschäftigungsverhältnis = db.Column(db.Integer, nullable=False, default=0)
+    language_enrollment_document = db.Column(db.Integer, nullable=False, default=0)
+    nursing_school_enrollment_document = db.Column(db.Integer, nullable=False, default=0)
+    barmer = db.Column(db.Integer, nullable=False, default=0)
+    b2_course = db.Column(db.DateTime, default=None)
+    b2_score = db.Column(db.Integer, nullable=False, default=0)
+    ausbildung_start = db.Column(db.DateTime, default=None)
+    visa_valide_until = db.Column(db.DateTime, default=None)
+    payment = db.Column(db.TEXT, default='[]')
+    note = db.Column(db.String(255), nullable=False, default="")
+    Erweitertes_Führungszeugniss = db.Column(db.DateTime, default=None)
+    email_address = db.Column(db.String(255), nullable=False, default="")
+    apartment_address = db.Column(db.String(255), nullable=False, default="")
+    german_phone_number = db.Column(db.String(255), nullable=False, default="")
+    additional1 = db.Column(db.String(255), nullable=False, default="")
+    additional2 = db.Column(db.String(255), nullable=False, default="")
+    additional3 = db.Column(db.String(255), nullable=False, default="")
+    additional4 = db.Column(db.String(255), nullable=False, default="")
+    additional5 = db.Column(db.String(255), nullable=False, default="")
+    additional6 = db.Column(db.String(255), nullable=False, default="")
+    additional7 = db.Column(db.String(255), nullable=False, default="")
+    additional8 = db.Column(db.String(255), nullable=False, default="")
+    additional9 = db.Column(db.String(255), nullable=False, default="")
+    additional10 = db.Column(db.String(255), nullable=False, default="")
+    abschlusszeugnis_oberstufe_china_document = db.Column(db.Integer, default=0)
+    abschlusszeugnis_fachhochschule_china_document = db.Column(db.Integer, default=0)
+    leistungszeugni_oberstufe_china_document = db.Column(db.Integer, default=0)
+    leistungszeugnis_fachhochschule_china_document = db.Column(db.Integer, default=0)
+    passport_china_document = db.Column(db.Integer, default=0)
+    vollmacht_china_document = db.Column(db.Integer, default=0)
+    cv_lebenslauf_china_document = db.Column(db.Integer, default=0)
+    antrag_auf_bewertung_china_document = db.Column(db.Integer, default=0)
+    vormlose_absichtserklärung_china_document = db.Column(db.Integer, default=0)
+    motivation_schreiben_china_document = db.Column(db.Integer, default=0)
+    language_level_scan_china_document = db.Column(db.Integer, default=0)
+    passport_write_translator = db.Column(db.Integer, default=0)
+    abschlusszeugnis_oberstufe_write_translator = db.Column(db.Integer, default=0)
+    leistungszeugnis_oberstufe_write_translator = db.Column(db.Integer, default=0)
+    passport_sc = db.Column(db.Integer, default=0)
+    abschlusszeugnis_oberstufe_sc = db.Column(db.Integer, default=0)
+    leistungszeugnis_oberstufe_sc = db.Column(db.Integer, default=0)
+    antrag_auf_bewertung_sc = db.Column(db.Integer, default=0)
+    contract_sc = db.Column(db.Integer, default=0)
+    erklärung_zum_eschäftigungsverhältnis_zav = db.Column(db.Integer, default=0)
+    vollmacht_zav = db.Column(db.Integer, default=0)
+    contract_zav = db.Column(db.Integer, default=0)
+    language_enrollment_document_zav = db.Column(db.Integer, default=0)
+    nursing_school_enrollment_document_zav = db.Column(db.Integer, default=0)
+    passport_zav = db.Column(db.Integer, default=0)
+    client_id = db.Column(db.Integer, default=0)
+    zav = db.Column(db.Integer, default=0)
+    sc = db.Column(db.Integer, default=0)
 
 
 @route_student.route('', methods=['POST'])
@@ -126,6 +235,8 @@ def add_student():
 
     if not data:
         return jsonify({'message': 'No data provided'}), 400
+    payment_data = data.get('payment', [])
+    payment_data = json.dumps(payment_data)
 
     try:
         new_student = Student(
@@ -152,7 +263,7 @@ def add_student():
             b2_score=data.get('b2_score'),
             ausbildung_start=data.get('ausbildung_start'),  # 日期字段格式
             visa_valide_until=data.get('visa_valide_until'),  # 日期字段格式
-            payment=data.get('payment'),  # 日期字段格式
+            payment=payment_data,  # 日期字段格式
             note=data.get('note'),
             Erweitertes_Führungszeugniss=data.get('Erweitertes_Führungszeugniss'),  # 日期字段格式
             email_address=data.get('email_address'),
@@ -194,6 +305,10 @@ def update_student(student_id):
 
     # 只更新传入的字段
     for key, value in data.items():
+        if key == 'payment' and isinstance(value, list):
+            # 序列化 payment 数组
+            value = json.dumps(value)
+
         if hasattr(student, key):
             setattr(student, key, value)
 
@@ -225,16 +340,28 @@ def get_student(student_id):
     if not student:
         return jsonify({'message': 'Student not found'}), 404
 
-    return jsonify(student.to_dict()), 200
+    return jsonify(student.to_dict(include_file_data=True)), 200
 
 @route_student.route('', methods=['GET'])
 def get_students():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('size', 10, type=int)  # 注意这里是 'size', 不是 'per_page'
+    per_page = request.args.get('size', 10, type=int)
+    name_search = request.args.get('name', '', type=str)
+    order = request.args.get('order', 'desc', type=str)
 
-    paginated_students = Student.query.order_by(Student.id.desc()).paginate(page=page, per_page=per_page,
-                                                                        error_out=False)
-    students_data = [student.to_dict(include_file_data=True) for student in paginated_students.items]
+    # 构建查询并根据 name 参数进行过滤
+    query = Student.query
+    if name_search:
+        query = query.filter(Student.name.ilike(f"%{name_search}%"))
+
+    # 根据 order 参数进行排序
+    if order.lower() == 'asc':
+        query = query.order_by(Student.id.asc())
+    else:
+        query = query.order_by(Student.id.desc())
+
+    paginated_students = query.paginate(page=page, per_page=per_page, error_out=False)
+    students_data = [student.to_dict(include_file_data=False) for student in paginated_students.items]
 
     pagination_data = {
         'total_pages': paginated_students.pages,
@@ -245,3 +372,11 @@ def get_students():
     }
 
     return jsonify(pagination_data), 200
+
+def set_payments(self, payment_times):
+    """将 datetime 对象列表转换为 JSON 字符串并存储"""
+    self.payment = json.dumps([payment_time.isoformat() for payment_time in payment_times])
+
+def get_payments(self):
+    """从 JSON 字符串中提取 datetime 对象列表"""
+    return [datetime.fromisoformat(ts) for ts in json.loads(self.payment)]

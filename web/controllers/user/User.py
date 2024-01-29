@@ -1,4 +1,5 @@
 # User.py
+from datetime import timedelta
 from sqlite3 import IntegrityError
 
 from flask import Flask, request, jsonify, Blueprint
@@ -73,7 +74,7 @@ def login():
     # 验证用户名和密码
     if user and user.password == password:
         # 创建 JWT 令牌
-        access_token = create_access_token(identity=username)
+        access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
         return jsonify(access_token=access_token, user=user.to_dict()), 200
     else:
         return jsonify({"msg": "Bad username or password"}), 401
