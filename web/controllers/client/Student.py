@@ -29,6 +29,18 @@ class Student(db.Model):
                 return False
         return True
 
+    def check_all_fields_have_files2(self, field_names):
+        """检查给定字段是否都有文件上传记录"""
+        # 一次性获取该用户的所有文件上传记录
+        uploads = FileUpload.query.filter_by(user_id=self.id).all()
+        upload_field_names = {upload.field_name for upload in uploads}
+
+        # 检查每个字段是否都在上传记录中
+        for field_name in field_names:
+            if field_name not in upload_field_names:
+                return False
+        return True
+
     def to_dict(self, include_file_data=False):
         student_dict =  {
             'id': self.id,
@@ -156,6 +168,26 @@ class Student(db.Model):
         # 检查并设置每组字段
         for group_name, field_names in groups.items():
             student_dict[group_name] = 1 if self.check_all_fields_have_files(field_names) else 0
+
+        # 特殊处理 'sc' 字段
+        sc_field_names = [
+                'passport_write_translator',
+                'abschlusszeugnis_oberstufe_write_translator',
+                'leistungszeugnis_oberstufe_write_translator',
+                'antrag_auf_bewertung_china_document',
+                'contract'
+        ]
+        student_dict['sc'] = 1 if self.check_all_fields_have_files2(sc_field_names) else 0
+
+        zav_field_names = [
+            'Erklärung_zum_Beschäftigungsverhältnis',
+            'vollmacht_china_document',
+            'contract',
+            'language_enrollment_document',
+            'nursing_school_enrollment_document',
+            'passport_write_translator'
+        ]
+        student_dict['zav'] = 1 if self.check_all_fields_have_files2(zav_field_names) else 0
 
         return student_dict
 
@@ -372,11 +404,3 @@ def get_students():
     }
 
     return jsonify(pagination_data), 200
-
-def set_payments(self, payment_times):
-    """将 datetime 对象列表转换为 JSON 字符串并存储"""
-    self.payment = json.dumps([payment_time.isoformat() for payment_time in payment_times])
-
-def get_payments(self):
-    """从 JSON 字符串中提取 datetime 对象列表"""
-    return [datetime.fromisoformat(ts) for ts in json.loads(self.payment)]

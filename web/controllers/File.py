@@ -79,3 +79,28 @@ def upload_file(user_id, field_name, type):
         return jsonify({'message': message}), 400
     return jsonify({'message': 'File uploaded successfully', 'file_path': file_path}), 201
 
+
+@route_file.route('/delete_files/<int:user_id>', methods=['POST'])
+def delete_files(user_id):
+    # 查找所有与用户相关的文件记录
+    file_records = FileUpload.query.filter_by(user_id=user_id).all()
+
+    for file_record in file_records:
+        # 尝试删除物理文件
+        try:
+            if os.path.exists(file_record.file_path):
+                os.remove(file_record.file_path)
+        except Exception as e:
+            # 如果物理文件删除失败，返回错误信息
+            return jsonify({'message': f'Error deleting file: {e}'}), 500
+
+        # 从数据库中删除文件记录
+        db.session.delete(file_record)
+
+    # 提交更改
+    try:
+        db.session.commit()
+        return jsonify({'message': 'All files deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': str(e)}), 500

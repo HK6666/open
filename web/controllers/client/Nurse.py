@@ -2,7 +2,9 @@
 # @Author  : kai huang
 # @File    : Nurse.py
 # -*- coding: utf-8 -*-
+import json
 import os
+from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, request, jsonify, Blueprint
@@ -26,6 +28,18 @@ class Nurse(db.Model):
                 return False
         return True
 
+    def check_all_fields_have_files2(self, field_names):
+        """检查给定字段是否都有文件上传记录"""
+        # 一次性获取该用户的所有文件上传记录
+        uploads = FileUpload.query.filter_by(user_id=self.id).all()
+        upload_field_names = {upload.field_name for upload in uploads}
+
+        # 检查每个字段是否都在上传记录中
+        for field_name in field_names:
+            if field_name not in upload_field_names:
+                return False
+        return True
+
     id = db.Column(db.Integer, primary_key=True)
     barmer = db.Column(db.Integer, default=0)
     b2_course = db.Column(db.DateTime)
@@ -35,7 +49,7 @@ class Nurse(db.Model):
     nurse_exam = db.Column(db.DateTime)
     Führungszeugniss = db.Column(db.DateTime)
     aapply_for_diploma = db.Column(db.DateTime)
-    payment = db.Column(db.DateTime)
+    payment = db.Column(db.TEXT, default='[]')
     note = db.Column(db.String(255))
     email_address = db.Column(db.String(255))
     apartment_address = db.Column(db.String(255))
@@ -100,7 +114,7 @@ class Nurse(db.Model):
         "nurse_exam": self.nurse_exam.isoformat() if self.nurse_exam else None,
         "Führungszeugniss": self.Führungszeugniss.isoformat() if self.Führungszeugniss else None,
         "aapply_for_diploma": self.aapply_for_diploma.isoformat() if self.aapply_for_diploma else None,
-        "payment": self.payment.isoformat() if self.payment else None,
+        'payment': json.loads(self.payment) if self.payment else [],
         "note": self.note,
         "email_address": self.email_address,
         "apartment_address": self.apartment_address,
@@ -196,15 +210,43 @@ class Nurse(db.Model):
         for group_name, field_names in groups.items():
             nurse_dict[group_name] = 1 if self.check_all_fields_have_files(field_names) else 0
 
+        ds_field_names = [
+            'state_specific_application_form_china',
+            'university_college_diploma_wt',
+            'nursing_major_course_list_wt',
+            'internship_work_experience_wt',
+            'nursing_certificate_wt',
+            'passport_china',
+            'cv_lebenslauf_china',
+            'vollmacht_china'
+        ]
+        nurse_dict['ds'] = 1 if self.check_all_fields_have_files2(ds_field_names) else 0
+
+        zav_field_names = [
+            'erklärung_zum_beschäftigungsverhältnis',
+            'zusatzbkatt_a',
+            'nursing_school_enrollment_document',
+            'language_enrollment_document',
+            'contract',
+            'passport_china'
+        ]
+        nurse_dict['zav'] = 1 if self.check_all_fields_have_files(zav_field_names) else 0
+
         return nurse_dict
 
 @route_nurse.route('', methods=['POST'])
 def create_nurse():
     data = request.get_json()
+
+    # 如果payment字段在请求数据中，将其序列化为JSON字符串
+    if 'payment' in data:
+        data['payment'] = json.dumps(data['payment'])
+
     nurse = Nurse(**data)
     db.session.add(nurse)
     db.session.commit()
     return jsonify(nurse.to_dict()), 201
+
 
 @route_nurse.route('/<int:nurse_id>', methods=['GET'])
 def get_nurse(nurse_id):
@@ -220,6 +262,11 @@ def update_nurse(nurse_id):
         return jsonify({'message': 'Nurse not found'}), 404
 
     data = request.get_json()
+
+    # 特殊处理payment字段
+    if 'payment' in data:
+        data['payment'] = json.dumps(data['payment'])
+
     for key, value in data.items():
         if hasattr(nurse, key):
             setattr(nurse, key, value)
@@ -230,6 +277,7 @@ def update_nurse(nurse_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': str(e)}), 500
+
 
 @route_nurse.route('/<int:nurse_id>/delete', methods=['POST'])
 def delete_nurse(nurse_id):
@@ -243,12 +291,27 @@ def delete_nurse(nurse_id):
 
 @route_nurse.route('/nurses', methods=['GET'])
 def get_nurses():
-    # 获取分页参数
+    # 获取分页和过滤参数
     page = request.args.get('page', 1, type=int)
-    size = request.args.get('size', 10, type=int)  # 使用 'size' 作为每页大小的参数
+    size = request.args.get('size', 10, type=int)
+    name_search = request.args.get('name', '', type=str)
+    order = request.args.get('order', 'desc', type=str)
 
-    # 分页查询
-    paginated_nurses = Nurse.query.order_by(Nurse.id.desc()).paginate(page=page, per_page=size, error_out=False)
+    # 构建基础查询
+    query = Nurse.query
+
+    # 应用名称过滤
+    if name_search:
+        query = query.filter(Nurse.name.ilike(f"%{name_search}%"))
+
+    # 应用排序
+    if order.lower() == 'asc':
+        query = query.order_by(Nurse.id.asc())
+    else:
+        query = query.order_by(Nurse.id.desc())
+
+    # 执行分页查询
+    paginated_nurses = query.paginate(page=page, per_page=size, error_out=False)
     nurses_data = [nurse.to_dict(include_file_data=False) for nurse in paginated_nurses.items]
 
     # 准备分页信息

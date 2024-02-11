@@ -28,6 +28,16 @@ class Client(db.Model):
     third_contact_and_feedback = db.Column(db.String(255), nullable=False)
     contract = db.Column(db.Integer, nullable=False)
     payment_terms = db.Column(db.String(255), nullable=False)
+    additional1 = db.Column(db.String(255), default="")
+    additional2 = db.Column(db.String(255), default="")
+    additional3 = db.Column(db.String(255), default="")
+    additional4 = db.Column(db.String(255), default="")
+    additional5 = db.Column(db.String(255), default="")
+    additional6 = db.Column(db.String(255), default="")
+    additional7 = db.Column(db.String(255), default="")
+    additional8 = db.Column(db.String(255), default="")
+    additional9 = db.Column(db.String(255), default="")
+    additional10 = db.Column(db.String(255), default="")
 
     def to_dict(self, include_file_data=False):
         client_dict = {
@@ -43,7 +53,17 @@ class Client(db.Model):
             'second_contact_feedback': self.second_contact_feedback,
             'third_contact_and_feedback': self.third_contact_and_feedback,
             'contract': self.contract,
-            'payment_terms': self.payment_terms
+            'payment_terms': self.payment_terms,
+            "additional1": self.additional1,
+            "additional2": self.additional2,
+            "additional3": self.additional3,
+            "additional4": self.additional4,
+            "additional5": self.additional5,
+            "additional6": self.additional6,
+            "additional7": self.additional7,
+            "additional8": self.additional8,
+            "additional9": self.additional9,
+            "additional10": self.additional10
         }
 
         if include_file_data:
@@ -89,7 +109,7 @@ def get_client(client_id):
     client = Client.query.get(client_id)
     if client is None:
         return jsonify({'message': 'Client not found'}), 404
-    return jsonify(client.to_dict()), 200
+    return jsonify(client.to_dict(include_file_data=True)), 200
 
 @route_client.route('/<int:client_id>/delete', methods=['POST'])
 def delete_client(client_id):
@@ -103,12 +123,27 @@ def delete_client(client_id):
 
 @route_client.route('/clients', methods=['GET'])
 def get_clients():
-    # 获取分页参数
+    # 获取分页、搜索和排序参数
     page = request.args.get('page', 1, type=int)
     size = request.args.get('size', 10, type=int)
+    name_search = request.args.get('name', '', type=str)
+    order = request.args.get('order', 'desc', type=str)
 
-    # 分页查询
-    paginated_clients = Client.query.order_by(Client.id.desc()).paginate(page=page, per_page=size, error_out=False)
+    # 构建基础查询
+    query = Client.query
+
+    # 应用名称过滤
+    if name_search:
+        query = query.filter(Client.name.ilike(f"%{name_search}%"))
+
+    # 应用排序
+    if order.lower() == 'asc':
+        query = query.order_by(Client.id.asc())
+    else:
+        query = query.order_by(Client.id.desc())
+
+    # 执行分页查询
+    paginated_clients = query.paginate(page=page, per_page=size, error_out=False)
     clients_data = [client.to_dict(include_file_data=True) for client in paginated_clients.items]
 
     # 准备分页信息
@@ -121,6 +156,7 @@ def get_clients():
     }
 
     return jsonify(pagination_data), 200
+
 
 
 
