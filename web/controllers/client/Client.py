@@ -38,6 +38,7 @@ class Client(db.Model):
     additional8 = db.Column(db.String(255), default="")
     additional9 = db.Column(db.String(255), default="")
     additional10 = db.Column(db.String(255), default="")
+    ProcessID = db.Column(db.Integer, nullable=False, default=0)
 
     def to_dict(self, include_file_data=False):
         client_dict = {
@@ -63,7 +64,8 @@ class Client(db.Model):
             "additional7": self.additional7,
             "additional8": self.additional8,
             "additional9": self.additional9,
-            "additional10": self.additional10
+            "additional10": self.additional10,
+            "ProcessID": self.ProcessID
         }
 
         if include_file_data:

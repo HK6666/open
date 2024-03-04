@@ -110,7 +110,8 @@ class Student(db.Model):
             'passport_zav': self.passport_zav,
             'client_id': self.client_id,
             'zav': self.zav,
-            'sc': self.sc
+            'sc': self.sc,
+            "ProcessID": self.ProcessID
         }
 
         if include_file_data:
@@ -201,7 +202,7 @@ class Student(db.Model):
     interview_q_and_a = db.Column(db.Integer, nullable=False, default=0)
     german_interview_training = db.Column(db.Integer, nullable=False, default=0)
     employer = db.Column(db.String(255), nullable=False, default="")
-    visa = db.Column(db.String(255), nullable=False, default="")
+    visa = db.Column(db.Integer, nullable=False, default=0)
     birthday = db.Column(db.DateTime, default=None)  # 默认为 None，表示没有设置
     china_document = db.Column(db.Integer, nullable=False, default=0)
     write_translator = db.Column(db.Integer, nullable=False, default=0)
@@ -259,6 +260,7 @@ class Student(db.Model):
     client_id = db.Column(db.Integer, default=0)
     zav = db.Column(db.Integer, default=0)
     sc = db.Column(db.Integer, default=0)
+    ProcessID = db.Column(db.Integer, nullable=False, default=0)
 
 
 @route_student.route('', methods=['POST'])

@@ -90,7 +90,7 @@ class Nurse(db.Model):
     interview = db.Column(db.Integer, default=0)
     german_interview_training = db.Column(db.Integer, default=0)
     employer = db.Column(db.String(255), default="")
-    visa = db.Column(db.String(255), default="")
+    visa = db.Column(db.Integer, nullable=False, default=0)
     birthday = db.Column(db.DateTime, default=None)
     additional1 = db.Column(db.String(255), default="")
     additional2 = db.Column(db.String(255), default="")
@@ -102,6 +102,7 @@ class Nurse(db.Model):
     additional8 = db.Column(db.String(255), default="")
     additional9 = db.Column(db.String(255), default="")
     additional10 = db.Column(db.String(255), default="")
+    ProcessID = db.Column(db.Integer, nullable=False, default=0)
 
     def to_dict(self, include_file_data=True):
         nurse_dict =  {
@@ -166,7 +167,8 @@ class Nurse(db.Model):
         "additional7": self.additional7,
         "additional8": self.additional8,
         "additional9": self.additional9,
-        "additional10": self.additional10
+        "additional10": self.additional10,
+        "ProcessID": self.ProcessID
         }
 
         if include_file_data:
